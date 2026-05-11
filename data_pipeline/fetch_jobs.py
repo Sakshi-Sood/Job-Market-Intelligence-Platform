@@ -1,8 +1,12 @@
 import requests
 import os
 import pandas as pd
+
 from dotenv import load_dotenv
-from clean_data import clean_jobs
+
+from data_pipeline.clean_data import clean_jobs
+from backend.database import engine
+
 
 # Load environment variables
 load_dotenv()
@@ -23,30 +27,90 @@ headers = {
     "X-RapidAPI-Host": API_HOST
 }
 
-response = requests.get(url, headers=headers, params=querystring)
 
-data = response.json()
+try:
+    # Fetch API response
+    response = requests.get(
+        url,
+        headers=headers,
+        params=querystring
+    )
 
-# Extract only job data
-jobs = data["data"]
+    # Raise error for bad responses
+    response.raise_for_status()
 
-# Convert to DataFrame
-df = pd.DataFrame(jobs)
+    data = response.json()
 
-# Select important columns
-df = df[
-    [
+    # Extract job data
+    jobs = data.get("data", [])
+
+    if not jobs:
+        print("No jobs found from API.")
+        exit()
+
+    # Convert to DataFrame
+    df = pd.DataFrame(jobs)
+
+    # Debugging: view API columns
+    print("\nColumns received from API:\n")
+    print(df.columns.tolist())
+
+    # Required columns
+    required_columns = [
         "job_id",
         "job_title",
         "employer_name",
         "job_city",
         "job_country",
         "job_employment_type",
+        "job_is_remote",
+        "job_posted_at_datetime_utc",
         "job_apply_link",
-        "job_description"
+        "job_description",
+        "job_min_salary",
+        "job_max_salary",
+        "job_salary_currency"
     ]
-]
 
-df = clean_jobs(df)
-print(df.head())
+    # Add missing columns dynamically
+    for col in required_columns:
+        if col not in df.columns:
+            df[col] = None
 
+    # Select columns
+    df = df[required_columns]
+
+    # Rename timestamp column
+    df.rename(
+        columns={
+            "job_posted_at_datetime_utc": "job_posted_at"
+        },
+        inplace=True
+    )
+
+    # Salary availability feature
+    df["salary_available"] = (
+        (df["job_min_salary"].fillna(0) > 0) |
+        (df["job_max_salary"].fillna(0) > 0)
+    )
+
+    # Clean data
+    df = clean_jobs(df)
+
+    # Preview cleaned data
+    print("\nCleaned Data:\n")
+    print(df.head())
+
+    # Insert into PostgreSQL
+    df.to_sql(
+        name="jobs",
+        con=engine,
+        if_exists="append",
+        index=False
+    )
+
+    print("\nData inserted successfully!")
+
+except Exception as e:
+    print("\nError occurred:")
+    print(e)
