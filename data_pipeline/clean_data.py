@@ -2,8 +2,49 @@ import pandas as pd
 
 def clean_jobs(df):
 
+    # =========================
+    # REQUIRED COLUMNS
+    # =========================
+
+    required_columns = [
+        "job_id",
+        "job_title",
+        "employer_name",
+        "job_city",
+        "job_country",
+        "job_employment_type",
+        "job_is_remote",
+        "job_posted_at_datetime_utc",
+        "job_apply_link",
+        "job_description",
+        "job_min_salary",
+        "job_max_salary",
+        "job_salary_currency"
+    ]
+
+    for col in required_columns:
+        if col not in df.columns:
+            df[col] = None
+
+    df = df[required_columns].copy()
+
+    # Rename columns
+    df.rename(
+        columns={
+            "job_posted_at_datetime_utc": "job_posted_at"
+        },
+        inplace=True
+    )
+
+    # Salary feature
+    df["salary_available"] = (
+        (df["job_min_salary"].fillna(0) > 0)
+        |
+        (df["job_max_salary"].fillna(0) > 0)
+    )
+
     # Remove duplicate jobs
-    df.drop_duplicates(subset="job_id", inplace=True)
+    df = df.drop_duplicates(subset=["job_id"])
 
     # Missing value analysis
     print("\nMissing Values:\n")
