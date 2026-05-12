@@ -72,6 +72,22 @@ def get_salary_metrics(df):
     }
 
 # =========================
+# TOP HIRING COMPANIES
+# =========================
+
+def get_top_companies(df, top_n=10):
+
+    valid_companies = df[
+        df["employer_name"] != "Not Specified"
+    ]
+
+    return (
+        valid_companies["employer_name"]
+        .value_counts()
+        .head(top_n)
+    )
+
+# =========================
 # DATA QUALITY METRICS
 # =========================
 
@@ -82,6 +98,13 @@ def get_data_quality_metrics(df):
     missing_percentages = (
         df.isnull().sum() / total_rows
     ) * 100
+
+    # Keep only columns with missing data
+    missing_percentages = (
+        missing_percentages[
+            missing_percentages > 0
+        ]
+    )
 
     return missing_percentages.sort_values(
         ascending=False

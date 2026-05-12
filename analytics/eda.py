@@ -1,14 +1,25 @@
+import logging
 import pandas as pd
 from sqlalchemy import text
 
 from backend.database import engine
+
+# ---------------------------------------------------------------------------
+#  Logging — configured here at the entrypoint, not inside library modules
+# ---------------------------------------------------------------------------
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s | %(levelname)-7s | %(name)s | %(message)s",
+    datefmt="%H:%M:%S",
+)
 
 from analytics.metrics import (
     get_employment_distribution,
     get_top_cities,
     get_remote_distribution,
     get_salary_metrics,
-    get_data_quality_metrics
+    get_data_quality_metrics,
+    get_top_companies
 )
 
 # =========================
@@ -86,6 +97,15 @@ top_cities = (
 
 print(top_cities)
 
+# =========================
+# TOP HIRING COMPANIES
+# =========================
+
+print("\nTop Hiring Companies:\n")
+
+top_companies = get_top_companies(eda_df, top_n=10)
+print(top_companies)
+
 
 # =========================
 # REMOTE JOB ANALYSIS
@@ -153,3 +173,28 @@ print(
     f"Percentage Remote Jobs: "
     f"{remote_percentage}%"
 )
+
+from analytics.visualizations import generate_all_visualizations
+
+# =========================
+# VISUALIZATIONS
+# =========================
+
+print("\n[*] Generating visualizations...\n")
+
+chart_paths = generate_all_visualizations(
+    df=eda_df,
+    top_cities=top_cities,
+    top_companies=top_companies,
+    employment_distribution=employment_distribution,
+    remote_distribution=remote_distribution,
+    missing_pct=data_quality_metrics,
+)
+
+import matplotlib.pyplot as plt
+
+print("\n[+] All charts saved to: outputs/visualizations/")
+print("[OK] EDA complete - rendering matplotlib figures...\n")
+
+# Display all matplotlib figures at once (non-blocking)
+plt.show()
