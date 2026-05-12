@@ -7,6 +7,7 @@ from dotenv import load_dotenv
 from data_pipeline.clean_data import clean_jobs
 from backend.database import engine
 
+from data_pipeline.load_data import upsert_jobs
 
 # =========================
 # LOAD ENV VARIABLES
@@ -112,12 +113,7 @@ try:
     # INSERT INTO POSTGRESQL
     # =========================
 
-    df.to_sql(
-        name="jobs",
-        con=engine,
-        if_exists="append",
-        index=False
-    )
+    upsert_jobs(df)
 
     print("\nData inserted successfully!")
 
