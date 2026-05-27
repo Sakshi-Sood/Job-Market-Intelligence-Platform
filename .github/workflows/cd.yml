@@ -14,16 +14,12 @@ name: CD
 
 on:
   push:
-    branches: [ main ]        # only on direct pushes / merges to main
+    branches: [main] # only on direct pushes / merges to main
 
 jobs:
   build-and-push:
     name: Build & Push to Docker Hub
     runs-on: ubuntu-latest
-
-    # Only run CD after CI workflow has passed
-    # This prevents pushing a broken image
-    needs: []                  # remove this if you want to chain with CI job
 
     steps:
       # ── 1. Checkout ────────────────────────────────────────────
@@ -60,14 +56,13 @@ jobs:
           context: .
           file: ./Dockerfile
           push: true
-          tags:       ${{ steps.meta.outputs.tags }}
-          labels:     ${{ steps.meta.outputs.labels }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
-          cache-to:   type=gha,mode=max
+          cache-to: type=gha,mode=max
 
       # ── 6. Print image digest ──────────────────────────────────
       - name: Print image digest
         run: |
           echo "Image pushed successfully!"
           echo "Tags: ${{ steps.meta.outputs.tags }}"
-          echo "Digest: ${{ steps.build-and-push.outputs.digest }}"
