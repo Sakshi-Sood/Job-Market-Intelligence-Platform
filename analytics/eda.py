@@ -2,6 +2,9 @@ import logging
 import pandas as pd
 from sqlalchemy import text
 
+from data_pipeline.skill_extractor import get_top_skills
+from data_pipeline.nlp_pipeline import get_role_distribution
+
 from backend.database import engine
 
 # ---------------------------------------------------------------------------
@@ -177,6 +180,29 @@ print(
 from analytics.visualizations import generate_all_visualizations
 
 # =========================
+# NLP METRICS
+# =========================
+ 
+nlp_df = pd.read_sql(
+    text("SELECT * FROM jobs WHERE role_category IS NOT NULL"),
+    engine
+)
+ 
+if nlp_df.empty:
+    print("\n[!] No NLP data found. Run nlp_pipeline.py first.")
+    top_skills    = pd.Series(dtype=int)
+    role_dist     = pd.Series(dtype=int)
+else:
+    top_skills = get_top_skills(nlp_df, top_n=20)
+    role_dist  = get_role_distribution(nlp_df)
+ 
+    print("\nTop 20 Skills:\n")
+    print(top_skills)
+ 
+    print("\nRole Distribution:\n")
+    print(role_dist)
+
+# =========================
 # VISUALIZATIONS
 # =========================
 
@@ -189,6 +215,8 @@ chart_paths = generate_all_visualizations(
     employment_distribution=employment_distribution,
     remote_distribution=remote_distribution,
     missing_pct=data_quality_metrics,
+    top_skills=top_skills,           
+    role_distribution=role_dist,
 )
 
 import matplotlib.pyplot as plt

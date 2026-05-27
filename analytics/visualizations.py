@@ -695,6 +695,145 @@ def plot_title_keywords(
     plt.tight_layout()
     return _save_matplotlib(fig, "title_keywords.png")
 
+# ==============================================
+#  8. TOP SKILLS DEMAND  (Plotly – Horizontal Bar)
+# ==============================================
+ 
+def plot_top_skills(top_skills: pd.Series) -> Optional[str]:
+    """
+    Horizontal bar chart showing the most in-demand skills across all jobs.
+ 
+    Parameters
+    ----------
+    top_skills : pd.Series  skill -> count, from skill_extractor.get_top_skills()
+ 
+    Returns
+    -------
+    File path to saved HTML, or None if no skill data.
+    """
+    if top_skills is None or top_skills.empty:
+        logger.warning("No skill data available — skipping skills chart.")
+        return None
+ 
+    skills = top_skills.index.tolist()[::-1]   # reverse for bottom-to-top display
+    counts = top_skills.values.tolist()[::-1]
+    n      = len(skills)
+ 
+    colors = (_GRADIENT_PALETTE * 3)[:n][::-1]  # cycle palette if > 10 skills
+ 
+    fig = go.Figure(
+        go.Bar(
+            x=counts,
+            y=skills,
+            orientation="h",
+            marker=dict(
+                color=colors,
+                line=dict(width=0),
+                opacity=0.92,
+            ),
+            text=[f"{v:,}" for v in counts],
+            textposition="outside",
+            textfont=dict(size=11, color=_TEXT_PRIMARY),
+            hovertemplate=(
+                "<b>%{y}</b><br>"
+                "Job listings: %{x:,}<extra></extra>"
+            ),
+        )
+    )
+ 
+    _plotly_dark_layout(
+        fig,
+        title="Most In-Demand Skills",
+        xaxis_title="Number of Jobs Mentioning Skill",
+        yaxis_title="",
+    )
+ 
+    fig.update_layout(
+        height=max(400, n * 38),
+        xaxis=dict(range=[0, max(counts) * 1.18] if counts else [0, 1]),
+        yaxis=dict(tickfont=dict(size=12)),
+        margin=dict(l=160, r=60, t=80, b=60),
+    )
+ 
+    return _save_plotly(fig, "top_skills_demand.html")
+ 
+ 
+# ==============================================
+#  9. ROLE DISTRIBUTION  (Plotly – Donut)
+# ==============================================
+ 
+def plot_role_distribution(role_distribution: pd.Series) -> Optional[str]:
+    """
+    Donut chart showing the breakdown of job roles across the dataset.
+ 
+    Parameters
+    ----------
+    role_distribution : pd.Series  role -> count,
+                        from nlp_pipeline.get_role_distribution()
+ 
+    Returns
+    -------
+    File path to saved HTML, or None if no data.
+    """
+    if role_distribution is None or role_distribution.empty:
+        logger.warning("No role data available — skipping role chart.")
+        return None
+ 
+    labels = role_distribution.index.tolist()
+    values = role_distribution.values.tolist()
+    n      = len(labels)
+ 
+    role_colors = [
+        "#6c63ff", "#56c596", "#ff6b6b",
+        "#ffd700", "#3dc1d3", "#ff8e72",
+        "#b388ff", "#ea80fc", "#a3de83", "#ffb347",
+    ][:n]
+ 
+    fig = go.Figure(
+        go.Pie(
+            labels=labels,
+            values=values,
+            hole=0.52,
+            marker=dict(
+                colors=role_colors,
+                line=dict(color=_BG_DARK, width=2.5),
+            ),
+            pull=[0.04 if v == max(values) else 0 for v in values],  # pull largest
+            textinfo="label+percent",
+            textfont=dict(size=11, color="#ffffff"),
+            hovertemplate=(
+                "<b>%{label}</b><br>"
+                "Jobs: %{value:,}<br>"
+                "Share: %{percent}<extra></extra>"
+            ),
+        )
+    )
+ 
+    total = sum(values)
+    fig.add_annotation(
+        text=(
+            f"<b>{total:,}</b><br>"
+            f"<span style='font-size:12px;color:{_TEXT_SECONDARY}'>Roles Mapped</span>"
+        ),
+        x=0.5, y=0.5,
+        font=dict(size=22, color="#ffffff"),
+        showarrow=False,
+        xref="paper", yref="paper",
+    )
+ 
+    _plotly_dark_layout(fig, title="Job Role Distribution")
+ 
+    fig.update_layout(
+        showlegend=True,
+        legend=dict(
+            orientation="h",
+            yanchor="bottom", y=-0.20,
+            xanchor="center", x=0.5,
+            font=dict(size=11),
+        ),
+    )
+ 
+    return _save_plotly(fig, "role_distribution.html")
 
 # ==============================================
 #  ORCHESTRATOR
@@ -707,6 +846,8 @@ def generate_all_visualizations(
     employment_distribution: pd.Series,
     remote_distribution: pd.Series,
     missing_pct: pd.Series,
+    top_skills: pd.Series = None,           
+    role_distribution: pd.Series = None,
 ) -> Dict[str, Optional[str]]:
     """Generate every chart sequentially and return their file paths.
 
@@ -738,6 +879,8 @@ def generate_all_visualizations(
         "salary_distribution": plot_salary_distribution(df),
         "data_quality": plot_data_quality(missing_pct),
         "title_keywords": plot_title_keywords(df),
+        "top_skills": plot_top_skills(top_skills),             
+        "role_distribution": plot_role_distribution(role_distribution),
     }
 
     generated = sum(1 for v in paths.values() if v is not None)
