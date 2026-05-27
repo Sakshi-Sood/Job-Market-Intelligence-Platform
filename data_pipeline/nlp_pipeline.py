@@ -65,6 +65,12 @@ ROLE_RULES: list[tuple[str, list[str]]] = [
                           "swe", "software development"]),
 ]
 
+# Pre-compile regex patterns with word boundaries for performance and accuracy
+ROLE_PATTERNS: list[tuple[str, list[re.Pattern]]] = [
+    (role, [re.compile(rf"\b{re.escape(kw)}\b", re.IGNORECASE) for kw in keywords])
+    for role, keywords in ROLE_RULES
+]
+
 OTHER_CATEGORY = "Other"
 
 
@@ -126,11 +132,11 @@ def categorise_role(title: str, description: str) -> str:
     -------
     str  one of the ROLE_RULES keys or 'Other'
     """
-    combined = f"{title} {description}".lower()
+    combined = f"{title} {description}"
 
-    for role, keywords in ROLE_RULES:
-        for kw in keywords:
-            if kw in combined:
+    for role, patterns in ROLE_PATTERNS:
+        for pattern in patterns:
+            if pattern.search(combined):
                 return role
 
     return OTHER_CATEGORY
