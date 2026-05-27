@@ -1,0 +1,73 @@
+# ================================================================
+# .github/workflows/cd.yml
+#
+# CD Pipeline — runs only when CI passes on a push to main.
+#
+# Steps:
+#   1. Build Docker image
+#   2. Push to Docker Hub with two tags:
+#        - latest
+#        - git SHA  (e.g. abc1234) for traceability
+# ================================================================
+
+name: CD
+
+on:
+  push:
+    branches: [ main ]        # only on direct pushes / merges to main
+
+jobs:
+  build-and-push:
+    name: Build & Push to Docker Hub
+    runs-on: ubuntu-latest
+
+    # Only run CD after CI workflow has passed
+    # This prevents pushing a broken image
+    needs: []                  # remove this if you want to chain with CI job
+
+    steps:
+      # ── 1. Checkout ────────────────────────────────────────────
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # ── 2. Docker Buildx (multi-platform support) ──────────────
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # ── 3. Log in to Docker Hub ────────────────────────────────
+      # DOCKERHUB_USERNAME and DOCKERHUB_TOKEN must be set in:
+      # GitHub repo → Settings → Secrets and variables → Actions
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      # ── 4. Extract metadata for tags ──────────────────────────
+      - name: Extract Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ secrets.DOCKERHUB_USERNAME }}/job-market-intelligence
+          tags: |
+            type=raw,value=latest
+            type=sha,prefix=,format=short
+
+      # ── 5. Build and push ──────────────────────────────────────
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags:       ${{ steps.meta.outputs.tags }}
+          labels:     ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to:   type=gha,mode=max
+
+      # ── 6. Print image digest ──────────────────────────────────
+      - name: Print image digest
+        run: |
+          echo "Image pushed successfully!"
+          echo "Tags: ${{ steps.meta.outputs.tags }}"
+          echo "Digest: ${{ steps.build-and-push.outputs.digest }}"
