@@ -76,15 +76,17 @@ def clean_jobs(df):
         .str.lower()
     )
 
-    # Convert timestamp
+    # Convert timestamp — replace NaT with None for PostgreSQL
     df["job_posted_at"] = pd.to_datetime(
         df["job_posted_at"],
         errors="coerce"
     )
-
-    # Convert NaT to None
+    # Convert NaT → None so psycopg2 sends NULL instead of the string "NaT"
     df["job_posted_at"] = df["job_posted_at"].where(
-        df["job_posted_at"].notna(), None
+        df["job_posted_at"].notna(), other=None
     )
+    # Force the column to object dtype so None stays as Python None
+    df["job_posted_at"] = df["job_posted_at"].astype(object)
+    df.loc[df["job_posted_at"].isna(), "job_posted_at"] = None
 
     return df

@@ -82,6 +82,13 @@ def upsert_jobs(df: pd.DataFrame) -> dict[str, Any]:
         # Convert NaN → None for PostgreSQL compatibility
         df = df.where(df.notnull(), None)
 
+        # Also convert any remaining pandas NaT → Python None
+        # (NaT in datetime columns isn't caught by notnull in all cases)
+        import pandas as _pd
+        for col in df.select_dtypes(include=["datetime", "datetimetz"]).columns:
+            df[col] = df[col].astype(object)
+            df.loc[df[col].isna(), col] = None
+
         # Reflect the existing table schema
         metadata = MetaData()
         jobs_table = Table(
@@ -91,6 +98,13 @@ def upsert_jobs(df: pd.DataFrame) -> dict[str, Any]:
         )
 
         records = df.to_dict(orient="records")
+
+        # Final safety: convert any remaining NaT to None in record dicts
+        for rec in records:
+            for key, val in rec.items():
+                if isinstance(val, _pd.NaT.__class__) or (hasattr(val, 'isnull') and val != val):
+                    rec[key] = None
+
         metrics["total_records"] = len(records)
 
         if not records:
