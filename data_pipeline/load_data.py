@@ -44,6 +44,7 @@ UPSERT_COLUMNS: list[str] = [
     "job_max_salary",
     "job_salary_currency",
     "salary_available",
+    "search_query",
     "last_updated",
 ]
 

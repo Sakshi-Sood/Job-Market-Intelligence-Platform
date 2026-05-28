@@ -28,7 +28,7 @@ logging.basicConfig(
 #  Grouped by category for readability only.
 # ==============================================================
 
-SKILLS = {
+DEFAULT_SKILLS = {
     # --- Languages ---
     "python", "sql", "r", "java", "scala", "julia", "c++", "go", "rust",
 
@@ -68,26 +68,55 @@ SKILLS = {
     "excel", "linux", "bash", "rest api", "graphql",
 }
 
-# Pre-compile regex patterns once at import time for performance.
-# \b = word boundary so "r" doesn't match inside "spark" etc.
-_PATTERNS: dict[str, re.Pattern] = {
+# Pre-compile regex patterns once at import time for the default set.
+_DEFAULT_PATTERNS: dict[str, re.Pattern] = {
     skill: re.compile(rf"\b{re.escape(skill)}\b", re.IGNORECASE)
-    for skill in SKILLS
+    for skill in DEFAULT_SKILLS
 }
+
+
+def build_patterns(
+    custom_skills: set[str] | list[str] | None = None,
+) -> dict[str, re.Pattern]:
+    """
+    Return compiled regex patterns for the full skill set.
+
+    If custom_skills is provided, merge them with DEFAULT_SKILLS
+    and compile patterns for the new entries only.
+    """
+    if not custom_skills:
+        return _DEFAULT_PATTERNS
+
+    merged = DEFAULT_SKILLS | {s.strip().lower() for s in custom_skills if s.strip()}
+    new_skills = merged - DEFAULT_SKILLS
+
+    if not new_skills:
+        return _DEFAULT_PATTERNS
+
+    # Start from default patterns, add new ones
+    patterns = dict(_DEFAULT_PATTERNS)
+    for skill in new_skills:
+        patterns[skill] = re.compile(rf"\b{re.escape(skill)}\b", re.IGNORECASE)
+
+    return patterns
 
 
 # ==============================================================
 #  CORE EXTRACTION FUNCTION
 # ==============================================================
 
-def extract_skills_from_text(text: str) -> list[str]:
+def extract_skills_from_text(
+    text: str,
+    custom_skills: set[str] | list[str] | None = None,
+) -> list[str]:
     """
     Return a sorted list of skills found in `text`.
 
     Parameters
     ----------
-    text : str
-        Raw or cleaned job description string.
+    text          : str   Raw or cleaned job description string.
+    custom_skills : set | list | None
+        Extra skills to look for on top of the built-in list.
 
     Returns
     -------
@@ -98,23 +127,30 @@ def extract_skills_from_text(text: str) -> list[str]:
     if not isinstance(text, str) or not text.strip():
         return []
 
+    patterns = build_patterns(custom_skills)
+
     found = [
         skill
-        for skill, pattern in _PATTERNS.items()
+        for skill, pattern in patterns.items()
         if pattern.search(text)
     ]
 
     return sorted(found)
 
 
-def extract_skills(df: pd.DataFrame) -> pd.DataFrame:
+def extract_skills(
+    df: pd.DataFrame,
+    custom_skills: set[str] | list[str] | None = None,
+) -> pd.DataFrame:
     """
     Add `extracted_skills` and `skill_count` columns to a jobs DataFrame.
 
     Parameters
     ----------
-    df : pd.DataFrame
+    df            : pd.DataFrame
         Must contain a `job_description` column (lowercase text preferred).
+    custom_skills : set | list | None
+        Extra skills to look for on top of the built-in list.
 
     Returns
     -------
@@ -125,8 +161,12 @@ def extract_skills(df: pd.DataFrame) -> pd.DataFrame:
         raise ValueError("DataFrame must contain a 'job_description' column.")
 
     logger.info("Extracting skills from %d job descriptions...", len(df))
+    if custom_skills:
+        logger.info("Including %d custom skills: %s", len(custom_skills), custom_skills)
 
-    skill_lists = df["job_description"].apply(extract_skills_from_text)
+    skill_lists = df["job_description"].apply(
+        lambda desc: extract_skills_from_text(desc, custom_skills)
+    )
 
     df = df.copy()
     df["extracted_skills"] = skill_lists.apply(lambda s: ", ".join(s))
@@ -209,19 +249,26 @@ def get_skill_cooccurrence(df: pd.DataFrame, top_n: int = 15) -> pd.DataFrame:
 #  python -m data_pipeline.skill_extractor
 # ==============================================================
 
-def run_skill_extraction() -> None:
+def run_skill_extraction(
+    custom_skills: set[str] | list[str] | None = None,
+) -> None:
     """
     Load jobs from PostgreSQL → extract skills → write results back.
 
     Adds columns `extracted_skills` and `skill_count` to the jobs table
     using an UPDATE statement per row (safe for incremental runs).
+
+    Parameters
+    ----------
+    custom_skills : set | list | None
+        Extra skills to look for on top of the built-in list.
     """
     logger.info("Loading jobs from PostgreSQL...")
 
     df = pd.read_sql(text("SELECT job_id, job_description FROM jobs"), engine)
     logger.info("Loaded %d rows.", len(df))
 
-    df = extract_skills(df)
+    df = extract_skills(df, custom_skills)
 
     logger.info("Writing skill results back to PostgreSQL...")
 
@@ -252,4 +299,4 @@ def run_skill_extraction() -> None:
 
 
 if __name__ == "__main__":
-    run_skill_extraction() 
+    run_skill_extraction()

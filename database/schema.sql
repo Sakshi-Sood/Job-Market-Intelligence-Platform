@@ -23,6 +23,7 @@ CREATE TABLE IF NOT EXISTS jobs (
     skill_count          INTEGER      DEFAULT 0,
     role_category        TEXT,
     top_keywords         TEXT,
+    search_query         TEXT         DEFAULT 'Data Scientist in India',
     last_updated         TIMESTAMPTZ  DEFAULT NOW()
 );
 

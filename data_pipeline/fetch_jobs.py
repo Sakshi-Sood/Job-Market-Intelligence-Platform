@@ -43,11 +43,9 @@ API_HOST = os.getenv("RAPIDAPI_HOST")
 
 URL = "https://jsearch.p.rapidapi.com/search"
 
-QUERY_PARAMS = {
-    "query": "Data Scientist in India",
-    "page": "1",
-    "num_pages": "1",
-}
+# Default query — used when no user input is provided
+DEFAULT_QUERY = "Data Scientist in India"
+DEFAULT_NUM_PAGES = 1
 
 HEADERS = {
     "X-RapidAPI-Key": API_KEY,
@@ -73,11 +71,15 @@ REQUIRED_COLUMNS: list[str] = [
     "job_max_salary",
     "job_salary_currency",
     "salary_available",
+    "search_query",
     "last_updated",
 ]
 
 
-def run_pipeline() -> None:
+def run_pipeline(
+    query: str | None = None,
+    num_pages: int | None = None,
+) -> None:
     """
     End-to-end ETL pipeline:
 
@@ -86,6 +88,13 @@ def run_pipeline() -> None:
     3. Stamp each record with `last_updated`.
     4. Upsert into PostgreSQL (insert new / update existing).
     5. Log sync metrics.
+
+    Parameters
+    ----------
+    query      : str | None   Search query (e.g. "ML Engineer in USA").
+                               Defaults to DEFAULT_QUERY if not provided.
+    num_pages  : int | None   Number of API pages to fetch (1-5).
+                               Defaults to DEFAULT_NUM_PAGES.
     """
 
     try:
@@ -94,12 +103,24 @@ def run_pipeline() -> None:
         # FETCH API RESPONSE
         # =========================
 
-        logger.info("Fetching jobs from JSearch API …")
+        search_query = query or DEFAULT_QUERY
+        pages = num_pages or DEFAULT_NUM_PAGES
+
+        logger.info(
+            "Fetching jobs from JSearch API — query=%r, pages=%d",
+            search_query, pages,
+        )
+
+        query_params = {
+            "query": search_query,
+            "page": "1",
+            "num_pages": str(pages),
+        }
 
         response = requests.get(
             URL,
             headers=HEADERS,
-            params=QUERY_PARAMS,
+            params=query_params,
         )
         response.raise_for_status()
 
@@ -120,6 +141,7 @@ def run_pipeline() -> None:
         # =========================
 
         df = pd.DataFrame(jobs)
+        df["search_query"] = search_query
 
         logger.info("Total jobs fetched from API: %d", len(df))
 

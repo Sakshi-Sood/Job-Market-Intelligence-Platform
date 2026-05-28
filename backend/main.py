@@ -349,9 +349,16 @@ def skills_by_role():
 # ── Pipeline trigger ──────────────────────────────────────────────
 
 @app.post("/pipeline/run", response_model=PipelineStatus, tags=["Pipeline"])
-def trigger_pipeline():
+def trigger_pipeline(
+    query: Optional[str]       = Query(None, description="Job search query (e.g. 'ML Engineer in USA')"),
+    num_pages: Optional[int]   = Query(None, ge=1, le=5, description="Pages to fetch (1-5, each ~10 jobs)"),
+    custom_skills: Optional[str] = Query(None, description="Comma-separated custom skills to track"),
+):
     """
     Trigger the full ETL + NLP pipeline synchronously.
+
+    Accepts optional parameters to customize what gets fetched and which skills
+    are extracted. Defaults to the built-in query and skill list if not provided.
 
     This is a blocking call — use it for demos and manual refreshes.
     For production, schedule via Airflow or Cron instead.
@@ -361,9 +368,17 @@ def trigger_pipeline():
         from data_pipeline.skill_extractor import run_skill_extraction
         from data_pipeline.nlp_pipeline    import run_nlp_pipeline
 
-        logger.info("Pipeline triggered via API...")
-        run_pipeline()
-        run_skill_extraction()
+        # Parse custom skills from comma-separated string
+        skills_list = None
+        if custom_skills:
+            skills_list = [s.strip() for s in custom_skills.split(",") if s.strip()]
+
+        logger.info(
+            "Pipeline triggered via API — query=%r, pages=%s, custom_skills=%s",
+            query, num_pages, skills_list,
+        )
+        run_pipeline(query=query, num_pages=num_pages)
+        run_skill_extraction(custom_skills=skills_list)
         run_nlp_pipeline()
         logger.info("Pipeline completed via API.")
 
