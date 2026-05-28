@@ -1,12 +1,11 @@
 # ================================================================
 # docker-compose.yml
-# Spins up three services:
+# 4 services:
 #   db       — PostgreSQL 15
-#   pipeline — runs ETL + NLP once, then exits
-#   app      — Streamlit dashboard (stays running)
+#   pipeline — ETL + NLP (runs once, exits)
+#   backend  — FastAPI REST API (port 8000)
+#   app      — Streamlit Dashboard (port 8501)
 # ================================================================
-
-version: "3.9"
 
 services:
 
@@ -20,17 +19,19 @@ services:
       POSTGRES_USER:     ${DB_USER}
       POSTGRES_PASSWORD: ${DB_PASSWORD}
     ports:
-      - "5432:5432"          # expose to host so pgAdmin still works
+      - "5432:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data   # persist data across restarts
-      - ./database/schema.sql:/docker-entrypoint-initdb.d/schema.sql  # auto-run on first start
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/schema.sql:/docker-entrypoint-initdb.d/schema.sql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - job_analytics_network
 
-  # ── ETL + NLP Pipeline ────────────────────────
+  # ── ETL + NLP Pipeline ───────────────────────────
   pipeline:
     build:
       context: .
@@ -39,18 +40,17 @@ services:
     container_name: job_analytics_pipeline
     depends_on:
       db:
-        condition: service_healthy   
+        condition: service_healthy
     environment:
       DB_NAME:       ${DB_NAME}
       DB_USER:       ${DB_USER}
       DB_PASSWORD:   ${DB_PASSWORD}
-      DB_HOST:       db               
+      DB_HOST:       db
       DB_PORT:       5432
       RAPIDAPI_KEY:  ${RAPIDAPI_KEY}
       RAPIDAPI_HOST: ${RAPIDAPI_HOST}
     volumes:
-      - ./outputs:/app/outputs         
-    # Run the full pipeline sequence: fetch → skills → NLP
+      - ./outputs:/app/outputs
     command: >
       sh -c "
         echo '[1/3] Running ETL pipeline...' &&
@@ -61,7 +61,39 @@ services:
         python -m data_pipeline.nlp_pipeline &&
         echo 'Pipeline complete.'
       "
-    restart: "no"                      
+    restart: "no"
+    networks:
+      - job_analytics_network
+
+  # ── FastAPI Backend ───────────────────────────────────────────
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime
+    container_name: job_analytics_backend
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DB_NAME:       ${DB_NAME}
+      DB_USER:       ${DB_USER}
+      DB_PASSWORD:   ${DB_PASSWORD}
+      DB_HOST:       db
+      DB_PORT:       5432
+    ports:
+      - "8000:8000"
+    command: ["uvicorn", "backend.main:app",
+              "--host", "0.0.0.0",
+              "--port", "8000"]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - job_analytics_network
 
   # ── Streamlit Dashboard ───────────────────────────────────────
   app:
@@ -77,18 +109,28 @@ services:
       DB_NAME:       ${DB_NAME}
       DB_USER:       ${DB_USER}
       DB_PASSWORD:   ${DB_PASSWORD}
-      DB_HOST:       db                
+      DB_HOST:       db
       DB_PORT:       5432
     ports:
       - "8501:8501"
     volumes:
-      - ./outputs:/app/outputs         
+      - ./outputs:/app/outputs
+    command: ["streamlit", "run", "dashboard/app.py",
+              "--server.port=8501",
+              "--server.address=0.0.0.0",
+              "--server.headless=true"]
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8501/_stcore/health"]
       interval: 30s
       timeout: 10s
       retries: 3
+    networks:
+      - job_analytics_network
+
+networks:
+  job_analytics_network:
+    driver: bridge
 
 volumes:
   postgres_data:
