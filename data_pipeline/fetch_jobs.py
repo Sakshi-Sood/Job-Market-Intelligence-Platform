@@ -15,6 +15,8 @@ from dotenv import load_dotenv
 
 from data_pipeline.clean_data import clean_jobs
 from data_pipeline.load_data import upsert_jobs
+from backend.database import engine
+from sqlalchemy import text
 
 from datetime import datetime, timezone
 
@@ -163,6 +165,7 @@ def run_pipeline(
         # =========================
 
         df = clean_jobs(df)
+        df["search_query"] = search_query
 
         # =========================
         # ADD SYNC TIMESTAMP
@@ -204,9 +207,37 @@ def run_pipeline(
         raise
 
 
+def run_baseline_sync() -> None:
+    """
+    Seed database with a baseline set of roles if the jobs table is empty.
+    """
+    try:
+        with engine.connect() as conn:
+            result = conn.execute(text("SELECT COUNT(*) FROM jobs"))
+            count = result.scalar()
+    except Exception:
+        count = 0
+
+    if count == 0:
+        logger.info("Database is empty. Seeding baseline real-time market data...")
+        baseline_queries = [
+            "Software Engineer",
+            "Data Scientist",
+            "DevOps Engineer",
+            "Frontend Developer",
+        ]
+        for query in baseline_queries:
+            try:
+                run_pipeline(query=query, num_pages=1)
+            except Exception as e:
+                logger.error("Failed to seed query %r: %s", query, e)
+    else:
+        logger.info("Database already contains %d jobs. Skipping baseline seed.", count)
+
+
 # ------------------------------------
 # Entry-point
 # ------------------------------------
 
 if __name__ == "__main__":
-    run_pipeline()
+    run_baseline_sync()

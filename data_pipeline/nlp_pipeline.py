@@ -132,11 +132,16 @@ def categorise_role(title: str, description: str) -> str:
     -------
     str  one of the ROLE_RULES keys or 'Other'
     """
-    combined = f"{title} {description}"
-
+    # 1. Check title first (high precision)
     for role, patterns in ROLE_PATTERNS:
         for pattern in patterns:
-            if pattern.search(combined):
+            if pattern.search(title):
+                return role
+
+    # 2. Check description as fallback
+    for role, patterns in ROLE_PATTERNS:
+        for pattern in patterns:
+            if pattern.search(description):
                 return role
 
     return OTHER_CATEGORY
