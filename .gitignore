@@ -4,9 +4,7 @@ __pycache__/
 .env
 .idea/
 .vscode/
-# Visualization Outputs
 outputs/
-# Plotly HTML exports
 *.html
-# Matplotlib exports
 *.png
+.env.local
