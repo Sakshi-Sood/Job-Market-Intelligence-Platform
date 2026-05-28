@@ -42,7 +42,7 @@ graph TD
 - **Skill Extraction**: Custom pattern matcher mapping job description bodies to a curated master list of over 70+ technologies (languages, frameworks, DBs, cloud services, DevOps tools).
 - **NLP Role Classification**: Categorizes job listings into precise fields (e.g., _Data Scientist, ML Engineer, AI Engineer, Data Engineer, DevOps, Backend Developer, Full Stack Developer, Software Engineer_) using domain-specific rule hierarchies.
 - **TF-IDF Keyword Extraction**: Runs term frequency-inverse document frequency vectors on descriptions to highlight the most relevant keywords per listing.
-- **Interactive Streamlit Dashboard**: Dark-mode analytics UI built with Plotly. Contains charts detailing hiring locations, top hiring companies, remote work distributions, role metrics, and custom salary boxes/strip plots.
+- **Interactive Streamlit Dashboard**: Sleek dark-mode analytics UI built with Plotly, using premium SVG inline icons instead of emojis. Visualizations are organized into three dedicated tabs: `Overview` (core KPIs and hiring distributions), `Skills & Roles` (technical skills and role categories), and `Job Explorer` (an advanced searchable data table).
 - **REST API Layer**: FastAPI service exposing structured data quality, market distributions, skills, and manual pipeline trigger endpoints.
 - **Unit Tests**: Robust validation covering text processing, classification, aggregation math, and data cleansing.
 
@@ -80,16 +80,26 @@ Inside `.env`, make sure to set:
 ### 2. Build and Launch Containers
 
 ```bash
-docker-compose up --build
+docker-compose up -d --build
 ```
 
 **What happens on startup:**
 
 1.  **`db` service**: Spins up PostgreSQL 15. The schema in [schema.sql](file:///c:/Users/ASUS/OneDrive/Desktop/job-market-intelligence-platform/database/schema.sql) is executed automatically on first initialization.
 2.  **`pipeline` service**: Executes the fetch, cleanup, skill extraction, and NLP categorization scripts sequentially, populating the database, then safely shuts down.
-3.  **`app` service**: Starts the Streamlit dashboard server.
+3.  **`backend` service**: Starts the FastAPI web server.
+4.  **`app` service**: Starts the Streamlit dashboard server.
 
 Once running, navigate to **`http://localhost:8501`** in your browser to view the interactive dashboard.
+
+### 3. Live Hot-Reloading & Fast Builds
+
+The Docker environment is configured for a seamless local development workflow:
+- **Hot-Reloading**: Local source directories (`./dashboard`, `./backend`, `./analytics`, `./data_pipeline`, `./database`) are mounted into the containers as volumes. 
+  - For the **Dashboard (`app` service)**, `--server.runOnSave=true` and `--server.fileWatcherType=poll` ensure Streamlit immediately re-runs when you save a file. Polling is utilized to guarantee change detection works reliably across Windows-to-Docker mount boundaries.
+  - For the **FastAPI (`backend` service)**, `--reload` ensures the `uvicorn` server automatically restarts when backend files change.
+  - You do **not** need to run `docker-compose down` or `docker-compose build` to see your code changes.
+- **Fast Builds**: A `.dockerignore` file excludes the local `venv/` directory, cache folders, and databases from the build context. This slashes the Docker transfer size from **880MB+ to 1.49 KB**, speeding up the initial container launch or package rebuilds to under **5 seconds**.
 
 ---
 
