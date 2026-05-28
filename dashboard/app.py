@@ -266,10 +266,92 @@ if df_raw.empty:
     st.stop()
 
 # ================================================================
-#  SIDEBAR FILTERS
+#  SIDEBAR — FETCH NEW DATA + FILTERS
 # ================================================================
 
 with st.sidebar:
+
+    # ── Section: Fetch New Data ──────────────────────────────────
+    st.markdown("""
+    <div style="font-family:'Space Mono',monospace; font-size:0.95rem;
+                font-weight:700; color:#eeeef5; margin-bottom:1rem;
+                padding-bottom:0.75rem; border-bottom:1px solid #2a2a40;">
+        🔄 Fetch New Data
+    </div>
+    """, unsafe_allow_html=True)
+
+    search_query = st.text_input(
+        "Job Search Query",
+        value="Data Scientist in India",
+        placeholder="e.g. ML Engineer in USA",
+        help="Enter any job title, role, or keyword + location",
+    )
+
+    num_pages = st.slider(
+        "Pages to fetch",
+        min_value=1,
+        max_value=5,
+        value=1,
+        help="Each page returns ~10 jobs. More pages = more data but slower.",
+    )
+
+    custom_skills_input = st.text_input(
+        "Custom Skills (comma-separated)",
+        value="",
+        placeholder="e.g. dax, power automate, looker studio",
+        help="Add extra skills to track beyond the built-in 70+ skills",
+    )
+
+    # Parse custom skills
+    custom_skills_list = None
+    if custom_skills_input.strip():
+        custom_skills_list = [
+            s.strip() for s in custom_skills_input.split(",") if s.strip()
+        ]
+
+    fetch_clicked = st.button(
+        "🚀 Fetch Jobs",
+        use_container_width=True,
+        type="primary",
+    )
+
+    if fetch_clicked:
+        if not search_query.strip():
+            st.error("Please enter a search query.")
+        else:
+            from data_pipeline.fetch_jobs import run_pipeline
+            from data_pipeline.skill_extractor import run_skill_extraction
+            from data_pipeline.nlp_pipeline import run_nlp_pipeline
+
+            progress = st.progress(0, text="Starting pipeline...")
+
+            try:
+                progress.progress(10, text="[1/3] Fetching jobs from API...")
+                run_pipeline(query=search_query.strip(), num_pages=num_pages)
+
+                progress.progress(45, text="[2/3] Extracting skills...")
+                run_skill_extraction(custom_skills=custom_skills_list)
+
+                progress.progress(75, text="[3/3] Running NLP pipeline...")
+                run_nlp_pipeline()
+
+                progress.progress(100, text="✅ Pipeline complete!")
+                st.success(
+                    f"Fetched jobs for **\"{search_query.strip()}\"** "
+                    f"({num_pages} page{'s' if num_pages > 1 else ''})."
+                )
+
+                # Clear cached data so the dashboard refreshes
+                load_data.clear()
+                st.rerun()
+
+            except Exception as e:
+                progress.progress(100, text="❌ Pipeline failed")
+                st.error(f"Pipeline error: {e}")
+
+    st.divider()
+
+    # ── Section: Filters ────────────────────────────────────────
     st.markdown("""
     <div style="font-family:'Space Mono',monospace; font-size:0.95rem;
                 font-weight:700; color:#eeeef5; margin-bottom:1rem;
