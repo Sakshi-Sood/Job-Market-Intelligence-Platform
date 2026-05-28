@@ -1,0 +1,31 @@
+# Exclude python virtual environment
+venv/
+.venv/
+env/
+.env/
+
+# Exclude git repository history
+.git/
+.github/
+.gitignore
+
+# Exclude tests and cache
+tests/
+.pytest_cache/
+.coverage
+htmlcov/
+.ipynb_checkpoints/
+
+# Exclude python cache files
+**/__pycache__/
+**/*.pyc
+**/*.pyo
+**/*.pyd
+
+# Exclude database / data output folders to prevent copying large state
+outputs/
+database/postgres_data/
+
+# OS specific files
+.DS_Store
+Thumbs.db
