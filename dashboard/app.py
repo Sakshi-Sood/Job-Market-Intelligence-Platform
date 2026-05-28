@@ -280,6 +280,7 @@ if df_raw.empty:
 
 # ================================================================
 #  SIDEBAR — FETCH NEW DATA + FILTERS
+#  SIDEBAR — FETCH NEW DATA + FILTERS
 # ================================================================
 
 with st.sidebar:
