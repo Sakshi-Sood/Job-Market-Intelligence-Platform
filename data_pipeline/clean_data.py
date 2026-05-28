@@ -82,4 +82,9 @@ def clean_jobs(df):
         errors="coerce"
     )
 
+    # Convert NaT to None
+    df["job_posted_at"] = df["job_posted_at"].where(
+        df["job_posted_at"].notna(), None
+    )
+
     return df
